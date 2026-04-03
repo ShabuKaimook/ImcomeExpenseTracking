@@ -1,8 +1,8 @@
-from .bank_parser import BankParser
-from models.transaction import Transaction
-from models.transaction_type import TransactionType
-from models.transaction_category import TransactionCategory
-from models.month import MonthShortName
+from ocr_service.bank_parsers.bank_parser import BankParser
+from ocr_service.models.transaction import Transaction
+from ocr_service.models.transaction_type import TransactionType
+from ocr_service.models.transaction_category import TransactionCategory
+from ocr_service.models.month import MonthShortName
 from datetime import datetime
 
 import re

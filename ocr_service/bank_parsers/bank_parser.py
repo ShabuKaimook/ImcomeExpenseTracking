@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from models.transaction import Transaction
+from ocr_service.models.transaction import Transaction
 
 class BankParser(ABC):
     @abstractmethod

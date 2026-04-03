@@ -1,5 +1,5 @@
-from .transaction_type import TransactionType
-from .transaction_category import TransactionCategory
+from ocr_service.models.transaction_type import TransactionType
+from ocr_service.models.transaction_category import TransactionCategory
 
 
 class Transaction:

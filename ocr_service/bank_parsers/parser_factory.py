@@ -1,4 +1,4 @@
-from .make_parser import Make
+from ocr_service.bank_parsers.make_parser import Make
 
 class ParserFactory:
     def __init__(self):

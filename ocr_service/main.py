@@ -1,7 +1,7 @@
 import pytesseract
 from PIL import Image
 
-from bank_parsers.parser_factory import ParserFactory
+from ocr_service.bank_parsers.parser_factory import ParserFactory
 
 def main():
 	img = Image.open('test_imgs/make_des.JPG')
