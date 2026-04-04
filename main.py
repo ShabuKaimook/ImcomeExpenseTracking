@@ -3,11 +3,13 @@ import pytesseract
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile, HTTPException
 import uvicorn
+from typing import List, Annotated
 
 from ocr_service.bank_parsers.parser_factory import ParserFactory
 
 app = FastAPI()
 parser_factory = ParserFactory()
+
 
 @app.post("/scan-slip")
 async def scan_slip(file: UploadFile = File(...)):
@@ -21,8 +23,8 @@ async def scan_slip(file: UploadFile = File(...)):
         img = Image.open(io.BytesIO(contents))
 
         # 3. ประมวลผล OCR (เหมือนโค้ดเดิมของคุณ)
-        texts = pytesseract.image_to_string(img, lang='tha+eng').splitlines()
-        texts = [text for text in texts if text.strip() != '']
+        texts = pytesseract.image_to_string(img, lang="tha+eng").splitlines()
+        texts = [text for text in texts if text.strip() != ""]
 
         # 4. ใช้ Parser Factory ค้นหา Parser ที่เหมาะสม
         try:
@@ -34,13 +36,30 @@ async def scan_slip(file: UploadFile = File(...)):
         transaction = parser.parse(texts)
 
         # 6. คืนค่ากลับเป็น JSON (FastAPI จะแปลง Object เป็น JSON ให้โดยอัตโนมัติ)
-        return {
-            "status": "success",
-            "data": transaction
-        }
+        return {"status": "success", "data": transaction}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+@app.post("/scan-multiple-slip")
+async def scan_multiple_slip(
+    upload_files: List[UploadFile] = File(..., alias="files")
+):
+    results = []
+
+    try:
+        for file in upload_files:
+            # สำคัญมาก: หากฟังก์ชัน scan_slip มีการ .read() ไปแล้ว 
+            # ต้องมั่นใจว่า cursor อยู่ที่ 0 ก่อนเสมอ
+            await file.seek(0)
+            
+            result = await scan_slip(file)
+            results.append(result)
+        return {"status": "success", "data": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
