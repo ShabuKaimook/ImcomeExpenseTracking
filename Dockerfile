@@ -1,4 +1,3 @@
-# 1. ใช้ Python Image แบบ Slim เพื่อให้ขนาดเล็กและประหยัดพื้นที่
 FROM python:3.11-slim
 
 # 2. ตั้งค่า Environment Variables
@@ -13,7 +12,6 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-tha \
     tesseract-ocr-eng \
-    libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. ตั้งค่า Working Directory ใน Container

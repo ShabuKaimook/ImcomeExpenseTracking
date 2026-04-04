@@ -1,11 +1,13 @@
 import io
 import pytesseract
 from PIL import Image
-from fastapi import FastAPI, File, UploadFile, HTTPException, Body
+from fastapi import FastAPI, File, UploadFile, HTTPException, Body, Security, Depends
+from fastapi.security.api_key import APIKeyHeader
 import uvicorn
 from typing import List, Annotated
 from dotenv import load_dotenv
 import os
+
 
 # from google.oauth2 import service_account
 # from googleapiclient.discovery import build
@@ -17,15 +19,35 @@ from ocr_service.bank_parsers.parser_factory import ParserFactory
 
 load_dotenv()
 
+APP_ENV = os.getenv("NODE_ENV", "production")
+IS_DEBUG = APP_ENV == "development"
+
 SERVICE_ACCOUNT_FILE = "credentials.json"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 
-app = FastAPI()
+header_name = os.getenv("API_KEY_HEADER", "X-API-Key")
+api_key_header = APIKeyHeader(name=header_name, auto_error=True)
+
+
+app = FastAPI(
+    title="My Expense Tracker API",
+    # ถ้าเป็น production จะกลายเป็น None (ปิดหน้า Docs ทันที)
+    docs_url="/docs" if IS_DEBUG else None,
+    redoc_url="/redoc" if IS_DEBUG else None,
+    openapi_url="/openapi.json" if IS_DEBUG else None,
+)
 parser_factory = ParserFactory()
 
 
-@app.post("/scan-slip")
+async def get_api_key(api_key: str = Depends(api_key_header)):
+    # เทียบค่าที่ส่งมากับค่าใน env
+    if api_key == os.getenv("API_KEY_VALUE"):
+        return api_key
+    raise HTTPException(status_code=403, detail="Forbidden: Invalid API Key")
+
+
+@app.post("/scan-slip", dependencies=[Depends(get_api_key)])
 async def scan_slip(file: UploadFile = File(...)):
     # 1. ตรวจสอบว่าเป็นไฟล์รูปภาพหรือไม่
     if not file.content_type.startswith("image/"):
@@ -56,7 +78,7 @@ async def scan_slip(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
-@app.post("/scan-multiple-slip")
+@app.post("/scan-multiple-slip", dependencies=[Depends(get_api_key)])
 async def scan_multiple_slip(upload_files: List[UploadFile] = File(..., alias="files")):
     results = []
 
@@ -73,7 +95,7 @@ async def scan_multiple_slip(upload_files: List[UploadFile] = File(..., alias="f
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
-@app.post("/add-to-sheet")
+@app.post("/add-to-sheet", dependencies=[Depends(get_api_key)])
 async def add_to_sheet(transactions: Annotated[list[list], Body()]):
     try:
         # 1. เชื่อมต่อและเลือก Sheet "Transaction"
@@ -97,7 +119,7 @@ async def add_to_sheet(transactions: Annotated[list[list], Body()]):
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
-@app.post("/scan-and-save-all")
+@app.post("/scan-and-save-all", dependencies=[Depends(get_api_key)])
 async def scan_and_save_all(upload_files: List[UploadFile] = File(..., alias="files")):
     try:
         # 1. เรียกใช้ฟังก์ชัน scan_multiple_slip ที่มีอยู่แล้ว
