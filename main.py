@@ -7,10 +7,7 @@ import uvicorn
 from typing import List, Annotated
 from dotenv import load_dotenv
 import os
-
-
-# from google.oauth2 import service_account
-# from googleapiclient.discovery import build
+import json
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -39,6 +36,27 @@ app = FastAPI(
 )
 parser_factory = ParserFactory()
 
+
+def get_google_creds():
+    # 1. พยายามดึงจาก Environment Variable ก่อน (วิธีที่แนะนำสำหรับ Cloud)
+    creds_json_str = os.getenv("GOOGLE_CREDS_JSON")
+    
+    if creds_json_str:
+        try:
+            # แปลงข้อความ JSON String กลับเป็น Dictionary
+            creds_info = json.loads(creds_json_str)
+            return ServiceAccountCredentials.from_json_keyfile_dict(creds_info, SCOPES)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="Invalid GOOGLE_CREDS_JSON format")
+            
+    # 2. ถ้าไม่มีใน Env ให้ลองหาจากไฟล์ (Fallback สำหรับรันในเครื่อง)
+    if os.path.exists(SERVICE_ACCOUNT_FILE):
+        return ServiceAccountCredentials.from_json_keyfile_name(
+            SERVICE_ACCOUNT_FILE, SCOPES
+        )
+    
+    # 3. ถ้าไม่เจอทั้งสองที่ ให้แจ้ง Error
+    raise HTTPException(status_code=500, detail="Google Credentials not found in ENV or File")
 
 async def get_api_key(api_key: str = Depends(api_key_header)):
     # เทียบค่าที่ส่งมากับค่าใน env
@@ -99,9 +117,7 @@ async def scan_multiple_slip(upload_files: List[UploadFile] = File(..., alias="f
 async def add_to_sheet(transactions: Annotated[list[list], Body()]):
     try:
         # 1. เชื่อมต่อและเลือก Sheet "Transaction"
-        creds = ServiceAccountCredentials.from_json_keyfile_name(
-            SERVICE_ACCOUNT_FILE, SCOPES
-        )
+        creds = get_google_creds()
         client = gspread.authorize(creds)
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
         sheet = spreadsheet.worksheet("Transaction")
