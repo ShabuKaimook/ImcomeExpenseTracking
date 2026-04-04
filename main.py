@@ -77,22 +77,69 @@ async def scan_multiple_slip(upload_files: List[UploadFile] = File(..., alias="f
 async def add_to_sheet(transactions: Annotated[list[list], Body()]):
     try:
         # 1. เชื่อมต่อและเลือก Sheet "Transaction"
-        creds = ServiceAccountCredentials.from_json_keyfile_name(SERVICE_ACCOUNT_FILE, SCOPES)
+        creds = ServiceAccountCredentials.from_json_keyfile_name(
+            SERVICE_ACCOUNT_FILE, SCOPES
+        )
         client = gspread.authorize(creds)
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
         sheet = spreadsheet.worksheet("Transaction")
 
         # 2. ใช้ append_rows เพื่อส่งข้อมูลทั้งหมดทีเดียว
-        sheet.append_rows(transactions, value_input_option='USER_ENTERED')
+        sheet.append_rows(transactions, value_input_option="USER_ENTERED")
 
         return {
             "status": "success",
             "message": f"Added {len(transactions)} rows successfully",
-            "data": transactions
+            "data": transactions,
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+@app.post("/scan-and-save-all")
+async def scan_and_save_all(upload_files: List[UploadFile] = File(..., alias="files")):
+    try:
+        # 1. เรียกใช้ฟังก์ชัน scan_multiple_slip ที่มีอยู่แล้ว
+        # เราต้องส่ง upload_files เข้าไปตรงๆ
+        scan_response = await scan_multiple_slip(upload_files)
+
+        if scan_response["status"] != "success":
+            raise HTTPException(status_code=500, detail="OCR Scanning failed")
+
+        # 2. ดึงข้อมูลจากผลลัพธ์การสแกนมาเตรียมทำเป็น Row สำหรับ Google Sheets
+        # scan_response["data"] จะเป็น list ของ transaction objects
+        transactions_to_save = []
+        for item in scan_response["data"]:
+            # สร้าง List ของข้อมูล 1 แถว (ใส่ "" นำหน้าสำหรับคอลัมน์ A)
+            row = [
+                "",  # คอลัมน์ A (ว่าง)
+                item.get("date"),
+                item.get("type"),
+                item.get("category"),
+                item.get("amount"),
+                item.get("description"),
+            ]
+            transactions_to_save.append(row)
+
+        # 3. เรียกใช้ฟังก์ชัน add_to_sheet ที่มีอยู่แล้ว
+        # โดยส่ง transactions_to_save (list of list) เข้าไป
+        if transactions_to_save:
+            sheet_response = await add_to_sheet(transactions_to_save)
+
+            return {
+                "status": "success",
+                "ocr_count": len(scan_response["data"]),
+                "sheet_message": sheet_response["message"],
+                "details": scan_response["data"],
+            }
+        else:
+            return {"status": "warning", "message": "No valid data found to save"}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Integrated Process Error: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
