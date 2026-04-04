@@ -1,11 +1,25 @@
 import io
 import pytesseract
 from PIL import Image
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Body
 import uvicorn
 from typing import List, Annotated
+from dotenv import load_dotenv
+import os
+
+# from google.oauth2 import service_account
+# from googleapiclient.discovery import build
+
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 from ocr_service.bank_parsers.parser_factory import ParserFactory
+
+load_dotenv()
+
+SERVICE_ACCOUNT_FILE = "credentials.json"
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 
 app = FastAPI()
 parser_factory = ParserFactory()
@@ -43,17 +57,15 @@ async def scan_slip(file: UploadFile = File(...)):
 
 
 @app.post("/scan-multiple-slip")
-async def scan_multiple_slip(
-    upload_files: List[UploadFile] = File(..., alias="files")
-):
+async def scan_multiple_slip(upload_files: List[UploadFile] = File(..., alias="files")):
     results = []
 
     try:
         for file in upload_files:
-            # สำคัญมาก: หากฟังก์ชัน scan_slip มีการ .read() ไปแล้ว 
+            # สำคัญมาก: หากฟังก์ชัน scan_slip มีการ .read() ไปแล้ว
             # ต้องมั่นใจว่า cursor อยู่ที่ 0 ก่อนเสมอ
             await file.seek(0)
-            
+
             result = await scan_slip(file)
             results.append(result)
         return {"status": "success", "data": results}
@@ -61,5 +73,27 @@ async def scan_multiple_slip(
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
+@app.post("/add-to-sheet")
+async def add_to_sheet(transactions: Annotated[list[list], Body()]):
+    try:
+        # 1. เชื่อมต่อและเลือก Sheet "Transaction"
+        creds = ServiceAccountCredentials.from_json_keyfile_name(SERVICE_ACCOUNT_FILE, SCOPES)
+        client = gspread.authorize(creds)
+        spreadsheet = client.open_by_key(SPREADSHEET_ID)
+        sheet = spreadsheet.worksheet("Transaction")
+
+        # 2. ใช้ append_rows เพื่อส่งข้อมูลทั้งหมดทีเดียว
+        sheet.append_rows(transactions, value_input_option='USER_ENTERED')
+
+        return {
+            "status": "success",
+            "message": f"Added {len(transactions)} rows successfully",
+            "data": transactions
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
