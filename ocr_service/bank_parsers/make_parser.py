@@ -37,7 +37,7 @@ class Make(BankParser):
             # remove space in text to make it easier to find amount pattern
             no_space_text = text.replace(" ", "").lower()
             
-            if no_space_text == "amount" and i + 1 < len(texts):
+            if "amount" in no_space_text and i + 1 < len(texts):
                     next_no_space_text = texts[i+1].replace(" ", "").lower()
                     next_no_space_text = next_no_space_text.replace(",", "")
                     next_no_space_text = next_no_space_text.replace("๑", ".")
