@@ -35,16 +35,14 @@ class Make(BankParser):
 
             # amount
             # remove space in text to make it easier to find amount pattern
-            no_space_text = text.replace(" ", "")
-            amount_pattern = r"[\d,]+\.\d{2}"
+            no_space_text = text.replace(" ", "").lower()
             
-            # find the match pattern for amount in text
-            amount_match = re.search(amount_pattern, no_space_text)
-
-            if amount_match:
-                amount = float(amount_match.group().replace(",", ""))
-                print("Amount found:", amount, "\n")
-                break
+            if no_space_text == "amount" and i + 1 < len(texts):
+                    next_no_space_text = texts[i+1].replace(" ", "").lower()
+                    next_no_space_text = next_no_space_text.replace(",", "")
+                    next_no_space_text = next_no_space_text.replace("๑", ".")
+                    amount = float(next_no_space_text)
+                    break
 
         # type
         type = TransactionType.EXPENSE
